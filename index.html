@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My Personal Streaming Site</title>
+</head>
+<body>
+  <h1>Streaming: Inception</h1>
+
+  <video id="player" controls width="640">
+    <source
+      src="https://drive.google.com/uc?export=download&id=1pxyupX9vV0O8YuDcfGPSxkTnORdFlmx8"
+      type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+
+  <script>
+    const video = document.getElementById('player');
+    const videoTitle = 'Inception.mp4';
+    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQH7qVGR5iFWpkKIAQNWrmzIeNdLqGkpf5f94Rkm85fCYLVdWJCzm6Q78CkZ2UT1kx-hVl-8a4QDnR2/pub?output=csv';
+
+    fetch(sheetUrl)
+      .then(res => res.text())
+      .then(csv => {
+        console.log('RAW CSV:\n', csv);
+
+        // Split lines, skip empty, split & trim columns
+        const lines = csv
+          .trim()
+          .split(/\r?\n/)
+          .filter(line => line.trim() !== '');
+
+        const rows = lines
+          .slice(1)                                   // drop header
+          .map(line => line.split(',').map(col => col.trim()));
+
+        console.log('Parsed rows:', rows);
+
+        // Try exact (case-insensitive) match on title
+        let match = rows.find(
+          row => row[0].toLowerCase() === videoTitle.toLowerCase()
+        );
+        console.log('Exact match:', match);
+
+        // If no exact match, fall back to first data row
+        if (!match && rows.length) {
+          console.warn('No exact match—using first row as fallback');
+          match = rows[0];
+        }
+
+        // Parse the time value
+        let timeSec = 0;
+        if (match && !isNaN(parseFloat(match[1]))) {
+          timeSec = parseFloat(match[1]);
+        }
+        console.log('Setting video.currentTime =', timeSec);
+        video.currentTime = timeSec;
+      })
+      .catch(err => console.error('Error fetching CSV:', err));
+
+    function saveProgress(atTime) {
+      fetch('https://hook.eu2.make.com/of3gkqwtwwrjeo32v8vw5r4j3hxs18hf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: videoTitle,
+          time: Math.floor(atTime),
+          lastWatched: new Date().toISOString()
+        })
+      }).catch(e => console.error('Error saving progress:', e));
+    }
+
+    video.addEventListener('pause', () => saveProgress(video.currentTime));
+    video.addEventListener('ended', () => saveProgress(video.duration));
+  </script>
+</body>
+</html>
